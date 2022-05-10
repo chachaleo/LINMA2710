@@ -15,7 +15,7 @@ SubMatrix::SubMatrix(int numRows, int numCols)
     this-> mData = new double [numCols * numRows];
     for (int i = 0; i < (numCols * numRows); i++)
     {
-        mData[i] = 0;
+        this->mData[i] = 0.0;
     }
 }   
 
@@ -33,49 +33,40 @@ int SubMatrix::Size(int i) const
 
 double SubMatrix::Read(int i, int j) const
 {
-    return mData[(i-1) + numCols * (j - 1)]; //---------Moins 1 car 1-based indexing ?
+    assert(i > 0);
+    assert(i <= Size(1));
+    assert(j > 0);
+    assert(j <= Size(2));
+    return mData[(i-1) * numCols + (j - 1)];
 }
 
 double& SubMatrix::operator()(int i, int j)
 {
-    assert(i > -1);
+    assert(i > 0);
     assert(i <= Size(1));
-    assert(j > -1);
+    assert(j > 0);
     assert(j <= Size(2));
     return mData[(i-1) * numCols + (j-1)];
 }
 
 void SubMatrix::SendReceiveRows(int rowsend, int ranksend, int rowrecv, int rankrecv, int tag, MPI_Comm comm)
 {
+    assert((rowsend - 1) * numCols > -1);
+    assert((rowsend - 1) * numCols < numCols * numRows);
+    assert((rowrecv - 1) * numCols > -1);
+    assert((rowrecv - 1) * numCols < numCols * numRows);
+    
     MPI_Sendrecv(&mData[(rowsend - 1) * numCols], numCols, MPI_DOUBLE, ranksend, tag, &mData[(rowrecv - 1) * numCols], numCols ,MPI_DOUBLE, rankrecv, tag, comm, MPI_STATUS_IGNORE);
 }
 
 
 
-void SubMatrix::SendReceiveColumns(int colsend, int ranksend, int colrecv, int rankrecv, int tag, MPI_Comm comm)
-{
 
-    double * buffer = new double[numRows];
-    double * col = new double [numRows];
-
-    for(int i = 0; i < numRows; i++)
-    {
-        col[i] = mData[i * numCols + (colsend-1)];
-        std::cout << "col : " << col[i] << std::endl;
-    }
-
-    MPI_Sendrecv(col, numRows, MPI_DOUBLE, ranksend, tag, buffer, numRows, MPI_DOUBLE, rankrecv, tag, comm, MPI_STATUS_IGNORE);
-
-    
-    for(int i = 0; i < numRows; i++)
-    {
-        mData[i * numCols + (colrecv-1)] = buffer[i];
-        std::cout << "buffer : " << buffer[i] << std::endl;
-    }
-    
+void SubMatrix::SendReceiveColumns(int colsend, int ranksend, int colrecv, int rankrecv, int tag, MPI_Comm comm) {
+	
+	MPI_Datatype column_type;
+	MPI_Type_vector(numRows, 1, numCols, MPI_DOUBLE, &column_type);
+	MPI_Type_commit(&column_type);
+	MPI_Sendrecv(&mData[colsend - 1], 1, column_type, ranksend, tag, &mData[colrecv - 1], 1, column_type, rankrecv, tag, comm, MPI_STATUS_IGNORE);
+	MPI_Type_free(&column_type);
 }
-
-
-
-    //MPI_Send(col, n, MPI_DOUBLE, ranksend, tag, comm);//----------C'est quoi n ? 
-    //MPI_Recv(&number, n, MPI_DOUBLE, rankrecv, tag, comm, MPI_STATUS_IGNORE);//----------C'est quoi n/Maxcount et c'est quoi l'adresse de la personne qui envoit et recoit? 
